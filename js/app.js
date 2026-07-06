@@ -36,6 +36,7 @@
     customDestinations: [],   // user-added destinations, persisted
     reviews: {},              // { [destId]: [{ name, rating, comment }] } user-added reviews, persisted
     photoOverrides: {},       // { [destId]: dataUrl } photos added to ANY card (incl. the 12 seeds), persisted
+    recentlyViewed: [],       // destination ids opened in the detail view, most-recent first, persisted
     detailId: null,           // destination currently open in the detail modal
 
     submitted: false,
@@ -45,6 +46,7 @@
 
     destForm: { name: '', region: '', category: '', desc: '', photoDataUrl: '' },
     destErrors: {},
+    editId: null,             // when set, the add-destination modal edits this id in place
 
     reviewForm: { name: '', rating: 0, comment: '' },
     reviewErrors: {}
@@ -85,6 +87,7 @@
     state.customDestinations = load('roameo_customDestinations', []);
     state.reviews = load('roameo_reviews', {});
     state.photoOverrides = load('roameo_photoOverrides', {});
+    state.recentlyViewed = load('roameo_recentlyViewed', []);
   }
 
   /* ------------------------------------------------------------------ *
@@ -112,6 +115,14 @@
   // Works uniformly for the 12 built-in cards and user-added ones.
   function photoOf(d) { return state.photoOverrides[d.id] || d.photo || null; }
 
+  // Average star rating across seed + user reviews, with the count.
+  function ratingOf(d) {
+    const reviews = getReviewsFor(d.id);
+    if (!reviews.length) return { avg: 0, count: 0 };
+    const sum = reviews.reduce((s, r) => s + r.rating, 0);
+    return { avg: sum / reviews.length, count: reviews.length };
+  }
+
   // Built-in destinations ship with SEED_REVIEWS; anything a user submits is
   // appended after those. Custom destinations simply have no seed reviews.
   function getReviewsFor(id) {
@@ -134,6 +145,7 @@
     });
     if (state.sort === 'name') list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     else if (state.sort === 'likes') list = [...list].sort((a, b) => likesOf(b) - likesOf(a));
+    else if (state.sort === 'rating') list = [...list].sort((a, b) => ratingOf(b).avg - ratingOf(a).avg);
     return list;
   }
 
@@ -168,6 +180,8 @@
     emptyState: document.getElementById('emptyState'),
     resetFiltersBtn: document.getElementById('resetFiltersBtn'),
     cardGrid: document.getElementById('cardGrid'),
+    recentSection: document.getElementById('recentSection'),
+    recentStrip: document.getElementById('recentStrip'),
     departDate: document.getElementById('departDate'),
     openModalBtn: document.getElementById('openModalBtn'),
     cdDday: document.getElementById('cdDday'),
@@ -202,6 +216,8 @@
     addDestBox: document.getElementById('addDestBox'),
     addDestCloseBtn: document.getElementById('addDestCloseBtn'),
     addDestForm: document.getElementById('addDestForm'),
+    addDestTitle: document.getElementById('addDestTitle'),
+    addDestSubmitBtn: document.getElementById('addDestSubmitBtn'),
     fDestName: document.getElementById('fDestName'),
     fDestRegion: document.getElementById('fDestRegion'),
     fDestCategory: document.getElementById('fDestCategory'),
@@ -223,6 +239,9 @@
     detailName: document.getElementById('detailName'),
     detailRegion: document.getElementById('detailRegion'),
     detailDesc: document.getElementById('detailDesc'),
+    detailOwnerActions: document.getElementById('detailOwnerActions'),
+    detailEditBtn: document.getElementById('detailEditBtn'),
+    detailDeleteBtn: document.getElementById('detailDeleteBtn'),
     detailLikes: document.getElementById('detailLikes'),
     detailDislikes: document.getElementById('detailDislikes'),
     detailRatingStars: document.getElementById('detailRatingStars'),
@@ -395,6 +414,7 @@
       const isFav = state.favs.includes(d.id);
       const isSpotlight = state.spotlightId === d.id;
       const name = escapeHtml(d.name), region = escapeHtml(d.region), desc = escapeHtml(d.desc);
+      const rating = ratingOf(d);
       // Uploaded photo wins over the placeholder gradient when present.
       const photo = photoOf(d);
       const imageStyle = photo ? `background:center/cover no-repeat url(${photo})` : `background:${d.grad}`;
@@ -431,6 +451,7 @@
           <div class="card__meta">
             <span class="likes">▲ ${likesOf(d)}</span>
             <span>▼ ${dislikesOf(d)}</span>
+            <span class="card__rating">★ ${rating.count ? rating.avg.toFixed(1) : '<span class="muted">-</span>'}</span>
             <button type="button" class="card__detail-btn">자세히
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
@@ -459,6 +480,40 @@
     });
 
     gridAnimated = true;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Render: recently viewed strip (home view only)
+   * ------------------------------------------------------------------ */
+  const RECENT_MAX = 8;
+  function recordRecentlyViewed(id) {
+    // Move id to the front, de-dupe, cap length.
+    state.recentlyViewed = [id, ...state.recentlyViewed.filter((x) => x !== id)].slice(0, RECENT_MAX);
+    save('roameo_recentlyViewed', state.recentlyViewed);
+  }
+  function renderRecentlyViewed() {
+    // Only ids that still resolve to a destination (a deleted one drops out).
+    const items = state.recentlyViewed
+      .map((id) => findDestination(id))
+      .filter(Boolean);
+    el.recentSection.hidden = items.length === 0;
+    if (!items.length) { el.recentStrip.innerHTML = ''; return; }
+
+    el.recentStrip.innerHTML = items.map((d) => {
+      const photo = photoOf(d);
+      const bg = photo ? `background-image:url(${photo})` : `background:${d.grad}`;
+      return `
+        <button type="button" class="recent-item" data-id="${d.id}">
+          <span class="recent-item__thumb" style="${bg}"></span>
+          <span>
+            <span class="recent-item__name">${escapeHtml(d.name)}</span><br>
+            <span class="recent-item__region">${escapeHtml(d.region)}</span>
+          </span>
+        </button>`;
+    }).join('');
+    el.recentStrip.querySelectorAll('.recent-item').forEach((btn) => {
+      btn.addEventListener('click', () => openDetail(btn.getAttribute('data-id')));
+    });
   }
 
   function toggleFav(id) {
@@ -860,6 +915,9 @@
   }
 
   function openAddDestModal() {
+    state.editId = null;
+    el.addDestTitle.textContent = '여행지 추가';
+    el.addDestSubmitBtn.textContent = '여행지 추가하기';
     resetDestForm();
     openDialog(el.addDestOverlay, el.fDestName);
   }
@@ -967,27 +1025,48 @@
       return;
     }
 
-    const id = 'dest-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const grad = PLACEHOLDER_GRADIENTS[Math.floor(Math.random() * PLACEHOLDER_GRADIENTS.length)];
-    const newDest = {
-      id, name: f.name.trim(), region: f.region.trim(), category: f.category,
-      desc: f.desc.trim(), grad, photo: state.destForm.photoDataUrl || null,
-      l: 0, d: 0, custom: true
-    };
-
-    const nextCustom = [...state.customDestinations, newDest];
-    const ok = save('roameo_customDestinations', nextCustom);
-    if (!ok) {
-      state.destErrors = { photo: '저장 공간이 부족해요. 사진 없이 등록하거나 다른 사진으로 시도해주세요.' };
-      renderDestFormErrors();
-      return;
+    if (state.editId) {
+      // EDIT: update the existing destination in place.
+      const nextCustom = state.customDestinations.map((x) => x.id === state.editId
+        ? { ...x, name: f.name.trim(), region: f.region.trim(), category: f.category, desc: f.desc.trim(), photo: state.destForm.photoDataUrl || null }
+        : x);
+      const ok = save('roameo_customDestinations', nextCustom);
+      if (!ok) {
+        state.destErrors = { photo: '저장 공간이 부족해요. 사진 없이 저장하거나 다른 사진으로 시도해주세요.' };
+        renderDestFormErrors();
+        return;
+      }
+      state.customDestinations = nextCustom;
+      // An edited photo replaces any earlier override so the new one shows.
+      if (state.photoOverrides[state.editId]) {
+        const po = { ...state.photoOverrides }; delete po[state.editId];
+        state.photoOverrides = po; save('roameo_photoOverrides', po);
+      }
+      state.editId = null;
+    } else {
+      // ADD: create a new destination.
+      const id = 'dest-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const grad = PLACEHOLDER_GRADIENTS[Math.floor(Math.random() * PLACEHOLDER_GRADIENTS.length)];
+      const newDest = {
+        id, name: f.name.trim(), region: f.region.trim(), category: f.category,
+        desc: f.desc.trim(), grad, photo: state.destForm.photoDataUrl || null,
+        l: 0, d: 0, custom: true
+      };
+      const nextCustom = [...state.customDestinations, newDest];
+      const ok = save('roameo_customDestinations', nextCustom);
+      if (!ok) {
+        state.destErrors = { photo: '저장 공간이 부족해요. 사진 없이 등록하거나 다른 사진으로 시도해주세요.' };
+        renderDestFormErrors();
+        return;
+      }
+      state.customDestinations = nextCustom;
     }
-    state.customDestinations = nextCustom;
 
     closeAddDestModal();
     renderGrid();
     renderHeroStats();
     renderPoll();
+    renderRecentlyViewed();
   }
 
   /* ------------------------------------------------------------------ *
@@ -1003,6 +1082,8 @@
     state.detailId = id;
     state.reviewForm = { name: '', rating: 0, comment: '' };
     state.reviewErrors = {};
+    recordRecentlyViewed(id);
+    renderRecentlyViewed();
     renderDetailModal();
     openDialog(el.detailOverlay, el.detailCloseBtn);
   }
@@ -1058,24 +1139,108 @@
     el.detailPhotoRemoveBtn.hidden = !photo;
     el.detailPhotoInput.value = '';
 
-    const reviews = getReviewsFor(d.id);
-    const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
-    el.detailRatingStars.innerHTML = starRowHtml(Math.round(avg));
-    el.detailRatingAvg.textContent = reviews.length ? avg.toFixed(1) : '리뷰 없음';
-    el.detailReviewCount.textContent = reviews.length ? `(${reviews.length})` : '';
+    // Edit / delete are only for user-added destinations.
+    el.detailOwnerActions.hidden = !d.custom;
 
-    el.detailReviews.innerHTML = reviews.length
-      ? reviews.map((r) => `
-        <li class="review-item">
-          <div class="review-item__top">
-            <span class="review-item__name">${escapeHtml(r.name)}</span>
-            <span class="review-item__stars">${starRowHtml(r.rating)}</span>
-          </div>
-          <p class="review-item__comment">${escapeHtml(r.comment)}</p>
-        </li>`).join('')
+    // Reviews: seed reviews first (not deletable), then the user's own
+    // (deletable). userIdx maps into state.reviews[id] for deletion.
+    const seed = SEED_REVIEWS[d.id] || [];
+    const userReviews = state.reviews[d.id] || [];
+    const all = seed.concat(userReviews);
+    const avg = all.length ? all.reduce((s, r) => s + r.rating, 0) / all.length : 0;
+    el.detailRatingStars.innerHTML = starRowHtml(Math.round(avg));
+    el.detailRatingAvg.textContent = all.length ? avg.toFixed(1) : '리뷰 없음';
+    el.detailReviewCount.textContent = all.length ? `(${all.length})` : '';
+
+    el.detailReviews.innerHTML = all.length
+      ? all.map((r, i) => {
+          const userIdx = i - seed.length; // >= 0 → user review, deletable
+          const delBtn = userIdx >= 0
+            ? `<button type="button" class="review-item__del" data-idx="${userIdx}" aria-label="내 리뷰 삭제">
+                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+               </button>`
+            : '';
+          return `
+            <li class="review-item">
+              <div class="review-item__top">
+                <span class="review-item__name">${escapeHtml(r.name)}</span>
+                <span class="review-item__meta">
+                  <span class="review-item__stars">${starRowHtml(r.rating)}</span>
+                  ${delBtn}
+                </span>
+              </div>
+              <p class="review-item__comment">${escapeHtml(r.comment)}</p>
+            </li>`;
+        }).join('')
       : '<li class="review-empty">아직 등록된 리뷰가 없어요. 첫 리뷰를 남겨보세요!</li>';
 
+    el.detailReviews.querySelectorAll('.review-item__del').forEach((btn) => {
+      btn.addEventListener('click', () => deleteReview(Number(btn.getAttribute('data-idx'))));
+    });
+
     renderReviewForm();
+  }
+
+  // Delete one of the current user's reviews (by index into state.reviews[id]).
+  function deleteReview(idx) {
+    const list = state.reviews[state.detailId];
+    if (!list || idx < 0 || idx >= list.length) return;
+    const next = list.slice();
+    next.splice(idx, 1);
+    state.reviews = { ...state.reviews, [state.detailId]: next };
+    save('roameo_reviews', state.reviews);
+    renderDetailModal();
+    renderGrid();       // card rating may change
+  }
+
+  // Delete a user-added destination and all data tied to it.
+  function deleteDestination() {
+    const d = findDestination(state.detailId);
+    if (!d || !d.custom) return;
+    if (!window.confirm(`'${d.name}'을(를) 삭제할까요? 되돌릴 수 없어요.`)) return;
+    const id = d.id;
+
+    state.customDestinations = state.customDestinations.filter((x) => x.id !== id);
+    save('roameo_customDestinations', state.customDestinations);
+    // Clean up related per-id data.
+    state.favs = state.favs.filter((x) => x !== id);            save('roameo_favs', state.favs);
+    if (state.userVote[id]) { const uv = { ...state.userVote }; delete uv[id]; state.userVote = uv; save('roameo_uservote', uv); }
+    if (state.reviews[id]) { const rv = { ...state.reviews }; delete rv[id]; state.reviews = rv; save('roameo_reviews', rv); }
+    if (state.photoOverrides[id]) { const po = { ...state.photoOverrides }; delete po[id]; state.photoOverrides = po; save('roameo_photoOverrides', po); }
+    state.recentlyViewed = state.recentlyViewed.filter((x) => x !== id);
+    save('roameo_recentlyViewed', state.recentlyViewed);
+    if (state.spotlightId === id) state.spotlightId = null;
+
+    closeDetailModal();
+    renderGrid();
+    renderHeroStats();
+    renderPoll();
+    renderRecentlyViewed();
+  }
+
+  // Open the add-destination modal in EDIT mode for the current destination.
+  function openEditDestination() {
+    const d = findDestination(state.detailId);
+    if (!d || !d.custom) return;
+    closeDetailModal();
+    state.editId = d.id;
+    state.destErrors = {};
+    state.destForm = {
+      name: d.name, region: d.region, category: d.category, desc: d.desc,
+      photoDataUrl: photoOf(d) || ''
+    };
+    el.addDestTitle.textContent = '여행지 수정';
+    el.addDestSubmitBtn.textContent = '수정 완료';
+    el.fDestName.value = d.name;
+    el.fDestRegion.value = d.region;
+    el.fDestCategory.value = d.category;
+    el.fDestDesc.value = d.desc;
+    const p = photoOf(d);
+    if (p) { el.destPhotoPreview.src = p; el.destPhotoPreviewWrap.hidden = false; }
+    else el.destPhotoPreviewWrap.hidden = true;
+    el.fDestPhoto.value = '';
+    renderDestFormErrors();
+    openDialog(el.addDestOverlay, el.fDestName);
   }
 
   // Sets input values from state (only needed when the modal opens / resets)
@@ -1229,6 +1394,8 @@
     el.detailCloseBtn.addEventListener('click', closeDetailModal);
     el.detailPhotoInput.addEventListener('change', onDetailPhotoChange);
     el.detailPhotoRemoveBtn.addEventListener('click', removeDetailPhoto);
+    el.detailEditBtn.addEventListener('click', openEditDestination);
+    el.detailDeleteBtn.addEventListener('click', deleteDestination);
     el.fReviewName.addEventListener('input', (e) => { state.reviewForm.name = e.target.value; });
     el.fReviewComment.addEventListener('input', (e) => { state.reviewForm.comment = e.target.value; });
     el.reviewForm.addEventListener('submit', submitReview);
@@ -1251,6 +1418,7 @@
     renderHeroStats();
     renderToolbarState();
     renderGrid();
+    renderRecentlyViewed();
     el.departDate.value = state.departDate;
     renderCountdown();
     renderPoll();

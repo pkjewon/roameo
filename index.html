@@ -117,6 +117,12 @@
         </div>
       </div>
 
+      <!-- Recently viewed (home view only; populated by app.js) -->
+      <div id="recentSection" class="recent home-only" hidden>
+        <p class="recent__title">최근 본 여행지</p>
+        <div id="recentStrip" class="recent__strip"></div>
+      </div>
+
       <!-- Toolbar: search + category chips + sort + favorites-only -->
       <div class="toolbar">
         <div class="search search--toolbar">
@@ -131,6 +137,7 @@
         <select id="sortSelect" class="select" aria-label="정렬 기준">
           <option value="recommended">추천순</option>
           <option value="likes">좋아요순</option>
+          <option value="rating">평점순</option>
           <option value="name">이름순</option>
         </select>
 
@@ -383,7 +390,7 @@
           </div>
           <p class="field__error" id="fDestPhotoError" role="alert" hidden></p>
         </div>
-        <button type="submit" class="btn btn--primary submit-btn">여행지 추가하기</button>
+        <button type="submit" id="addDestSubmitBtn" class="btn btn--primary submit-btn">여행지 추가하기</button>
       </form>
     </div>
   </div>
@@ -417,6 +424,18 @@
           <span id="detailRegion" class="detail-region"></span>
         </div>
         <p id="detailDesc" class="detail-desc"></p>
+
+        <!-- Edit / delete — only shown for user-added destinations -->
+        <div id="detailOwnerActions" class="detail-owner-actions" hidden>
+          <button id="detailEditBtn" class="btn btn--outline btn--sm" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            수정
+          </button>
+          <button id="detailDeleteBtn" class="btn btn--outline btn--sm btn--danger" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+            삭제
+          </button>
+        </div>
 
         <div class="detail-stats">
           <span class="detail-stats__item detail-stats__item--like">▲ <span id="detailLikes"></span></span>
