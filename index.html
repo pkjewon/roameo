@@ -6,7 +6,7 @@
 <meta name="description" content="Roameo — 대한민국 구석구석의 숨은 여행지를 검색하고, 찜하고, 일정을 세워 떠나보세요.">
 <title>Roameo — 당신의 다음 여행지를 찾아보세요</title>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="/css/styles.css">
+<link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
@@ -18,7 +18,7 @@
   <!-- ===== HEADER ===== -->
   <header class="header">
     <div class="header__inner">
-      <a href="#top" class="logo" aria-label="Roameo 홈">
+      <a href="#top" id="logoLink" class="logo" aria-label="Roameo 홈">
         <img src="assets/roameo-mark.png" alt="Roameo" class="logo__mark">
         <img src="assets/roameo-wordmark-v2.png" alt="" class="logo__wordmark">
       </a>
@@ -32,6 +32,11 @@
           </span>
           <input id="headerSearch" class="search__input" placeholder="여행지 검색" aria-label="여행지 검색" autocomplete="off">
         </div>
+        <!-- Trip countdown pill — shown only when a search/filter is active (non-home view) -->
+        <div id="headerTrip" class="header-trip" role="status" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16l20-6-8 12-2-5-8-1Z"/></svg>
+          <span id="headerTripText">D-?</span>
+        </div>
         <button id="themeToggle" class="icon-btn" type="button" aria-pressed="false">
           <svg id="iconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>
           <svg id="iconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" style="display:none" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z"/></svg>
@@ -43,7 +48,7 @@
   <main id="main">
 
   <!-- ===== HERO ===== -->
-  <section id="top" class="hero">
+  <section id="top" class="hero home-only">
     <div class="hero__glow" aria-hidden="true"></div>
     <div class="hero__inner">
       <div class="hero__content">
@@ -71,6 +76,17 @@
       </div>
 
       <div class="hero__stats">
+        <!-- Trip countdown widget (above the ranking widget on the home view) -->
+        <div class="stat-card stat-card--wide trip-hero">
+          <span class="trip-hero__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16l20-6-8 12-2-5-8-1Z"/></svg>
+          </span>
+          <div class="trip-hero__text">
+            <p class="stat-card__label">여행 떠나기까지</p>
+            <div class="trip-hero__value"><strong id="tripHeroDday">D-?</strong><span id="tripHeroSub">출발일을 선택하세요</span></div>
+          </div>
+        </div>
+
         <div class="stat-card stat-card--wide">
           <p class="stat-card__label">추천 1위</p>
           <div class="stat-card__row">
@@ -122,6 +138,11 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.5-9.3-9C1.2 8 2.5 5 5.5 5 7.5 5 9 6.3 12 9c3-2.7 4.5-4 6.5-4 3 0 4.3 3 2.8 6-2.3 4.5-9.3 9-9.3 9Z"/></svg>
           찜한 곳만
         </button>
+
+        <button id="addDestBtn" class="btn btn--primary btn--toolbar" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          여행지 추가
+        </button>
       </div>
 
       <!-- Empty state (검색/필터 결과 없음) -->
@@ -140,7 +161,7 @@
   </section>
 
   <!-- ===== COUNTDOWN / PLAN ===== -->
-  <section class="section">
+  <section class="section home-only">
     <div id="plan" class="section__inner">
       <p class="eyebrow">Feature · 여행 일정</p>
       <h2 class="section__title section__title--gap">떠나기까지 남은 시간</h2>
@@ -182,7 +203,7 @@
   </section>
 
   <!-- ===== VOTING (net-score leaderboard) ===== -->
-  <section class="section section--muted">
+  <section class="section section--muted home-only">
     <div class="section__inner">
       <p class="eyebrow">Travel Poll</p>
       <h2 class="section__title section__title--tight">가장 가보고 싶은 여행지는?</h2>
@@ -317,8 +338,156 @@
     </div>
   </div>
 
+  <!-- ===== ADD DESTINATION MODAL ===== -->
+  <div id="addDestOverlay" class="modal-overlay" hidden>
+    <div id="addDestBox" class="modal" role="dialog" aria-modal="true" aria-labelledby="addDestTitle">
+      <div class="modal__header">
+        <div>
+          <p class="eyebrow eyebrow--modal">New Destination</p>
+          <h3 id="addDestTitle" class="modal__title">여행지 추가</h3>
+        </div>
+        <button id="addDestCloseBtn" class="icon-btn" type="button" aria-label="여행지 추가 창 닫기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <form id="addDestForm" class="modal__form" novalidate>
+        <div class="field">
+          <label class="field__label" for="fDestName">여행지 이름</label>
+          <input id="fDestName" class="field__input" placeholder="예) 순천" autocomplete="off" aria-describedby="fDestNameError">
+          <p class="field__error" id="fDestNameError" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="fDestRegion">지역</label>
+          <input id="fDestRegion" class="field__input" placeholder="예) 전라남도" autocomplete="off" aria-describedby="fDestRegionError">
+          <p class="field__error" id="fDestRegionError" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="fDestCategory">카테고리</label>
+          <select id="fDestCategory" class="field__input select" aria-describedby="fDestCategoryError"></select>
+          <p class="field__error" id="fDestCategoryError" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="fDestDesc">간단한 설명</label>
+          <textarea id="fDestDesc" class="field__input field__textarea" rows="3" placeholder="이 여행지의 매력을 한두 문장으로 소개해주세요." aria-describedby="fDestDescError"></textarea>
+          <p class="field__error" id="fDestDescError" role="alert" hidden></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="fDestPhoto">사진 (선택)</label>
+          <input id="fDestPhoto" type="file" accept="image/*" class="field__file" aria-describedby="fDestPhotoError">
+          <div id="destPhotoPreviewWrap" class="photo-preview" hidden>
+            <img id="destPhotoPreview" alt="업로드한 사진 미리보기">
+            <button type="button" id="destPhotoRemoveBtn" class="photo-preview__remove" aria-label="사진 제거">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <p class="field__error" id="fDestPhotoError" role="alert" hidden></p>
+        </div>
+        <button type="submit" class="btn btn--primary submit-btn">여행지 추가하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== DESTINATION DETAIL MODAL (자세히) ===== -->
+  <div id="detailOverlay" class="modal-overlay" hidden>
+    <div id="detailBox" class="modal modal--detail" role="dialog" aria-modal="true" aria-labelledby="detailName">
+      <div id="detailBanner" class="detail-banner">
+        <button id="detailCloseBtn" class="icon-btn detail-banner__close" type="button" aria-label="상세 정보 닫기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <span id="detailBadge" class="card__badge detail-banner__badge"></span>
+
+        <!-- Photo controls: works for the 12 built-in cards and user-added ones alike -->
+        <div class="detail-banner__photo-actions">
+          <label for="detailPhotoInput" id="detailPhotoBtn" class="detail-photo-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2L8 5h8l1.5 2h2A1.5 1.5 0 0 1 21 8.5v10A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+            <span id="detailPhotoBtnText">사진 추가</span>
+          </label>
+          <input id="detailPhotoInput" type="file" accept="image/*" class="visually-hidden">
+          <button type="button" id="detailPhotoRemoveBtn" class="detail-photo-btn detail-photo-btn--remove" hidden>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            사진 제거
+          </button>
+        </div>
+      </div>
+
+      <div class="detail-body">
+        <div class="detail-title-row">
+          <h3 id="detailName" class="detail-name"></h3>
+          <span id="detailRegion" class="detail-region"></span>
+        </div>
+        <p id="detailDesc" class="detail-desc"></p>
+
+        <div class="detail-stats">
+          <span class="detail-stats__item detail-stats__item--like">▲ <span id="detailLikes"></span></span>
+          <span class="detail-stats__item">▼ <span id="detailDislikes"></span></span>
+          <span class="detail-stats__item detail-stats__rating">
+            <span id="detailRatingStars" class="star-row" aria-hidden="true"></span>
+            <span id="detailRatingAvg"></span>
+          </span>
+        </div>
+
+        <h4 class="detail-reviews__title">리뷰 <span id="detailReviewCount"></span></h4>
+        <ul id="detailReviews" class="detail-reviews"></ul>
+
+        <form id="reviewForm" class="review-form" novalidate>
+          <h4 class="review-form__title">리뷰 작성하기</h4>
+          <div class="field">
+            <label class="field__label" for="fReviewName">이름</label>
+            <input id="fReviewName" class="field__input" placeholder="닉네임" autocomplete="off" aria-describedby="fReviewNameError">
+            <p class="field__error" id="fReviewNameError" role="alert" hidden></p>
+          </div>
+          <div class="field">
+            <span class="field__label">별점</span>
+            <div id="reviewStarPicker" class="star-picker" role="radiogroup" aria-label="별점 선택"></div>
+            <p class="field__error" id="fReviewRatingError" role="alert" hidden></p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="fReviewComment">한줄평</label>
+            <input id="fReviewComment" class="field__input" placeholder="다녀온 소감을 남겨주세요." autocomplete="off" aria-describedby="fReviewCommentError">
+            <p class="field__error" id="fReviewCommentError" role="alert" hidden></p>
+          </div>
+          <button type="submit" class="btn btn--primary">리뷰 등록</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RANDOM PICK MODAL (룰렛/슬롯) ===== -->
+  <div id="randomOverlay" class="modal-overlay" hidden>
+    <div id="randomBox" class="modal modal--random" role="dialog" aria-modal="true" aria-labelledby="randomTitle">
+      <div class="modal__header">
+        <div>
+          <p class="eyebrow eyebrow--modal">Random Pick</p>
+          <h3 id="randomTitle" class="modal__title">랜덤 여행지 뽑기</h3>
+        </div>
+        <button id="randomCloseBtn" class="icon-btn" type="button" aria-label="랜덤 뽑기 닫기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <div class="random-body">
+        <div class="reel-viewport" aria-hidden="true">
+          <div id="reelStrip" class="reel-strip"></div>
+          <div class="reel-highlight"></div>
+        </div>
+
+        <div id="randomResult" class="random-result" role="status" hidden>
+          <p class="random-result__eyebrow">오늘의 여행지</p>
+          <h4 id="randomResultName" class="random-result__name"></h4>
+          <p id="randomResultRegion" class="random-result__region"></p>
+          <div class="random-result__actions">
+            <button id="randomDetailBtn" class="btn btn--primary" type="button">자세히 보기</button>
+            <button id="randomAgainBtn" class="btn btn--ghost" type="button">다시 뽑기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<script src="app.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

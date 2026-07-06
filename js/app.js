@@ -6,35 +6,17 @@
  * re-rendered imperatively from small `render*` functions — each owns one
  * region of the page and reads from `state`.
  *
+ * Depends on js/data.js being loaded first (defines CATS, DESTINATIONS,
+ * SEED_REVIEWS, PLACEHOLDER_GRADIENTS).
+ *
  * Feature map: dark mode, random pick, countdown, back-to-top, card hover,
  * search, category filter, sort, favorites, empty state, localStorage,
- * application form, like/dislike voting, favorites-only view, and combined
- * search + category filtering.
+ * application form, like/dislike voting, favorites-only view, combined
+ * search + category filtering, adding a destination (with photo upload),
+ * and a detail view with user-submitted reviews.
  */
 (() => {
   'use strict';
-
-  /* ------------------------------------------------------------------ *
-   * Data
-   * ------------------------------------------------------------------ */
-  const CATS = ['전체', '자연', '바다', '도시', '역사', '체험'];
-
-  // `l` / `d` are the seed like / dislike counts. A user's own vote is layered
-  // on top at read time via likesOf()/dislikesOf() so it stays reversible.
-  const DESTINATIONS = [
-    { id: 'jeju', name: '제주도', region: '제주', category: '자연', desc: '화산섬의 오름과 에메랄드빛 해변이 펼쳐지는 힐링 여행지.', grad: 'linear-gradient(150deg,#1e8f6a,#0f6a72)', l: 342, d: 12 },
-    { id: 'seoul', name: '서울', region: '서울', category: '도시', desc: '고궁과 미래가 공존하는 대한민국의 심장, 매일이 새로운 도시.', grad: 'linear-gradient(150deg,#41599b,#5a4a8f)', l: 289, d: 21 },
-    { id: 'busan', name: '부산', region: '부산', category: '바다', desc: '해운대 백사장과 감천문화마을, 활기찬 항구 도시의 낭만.', grad: 'linear-gradient(150deg,#2a72a8,#158a94)', l: 301, d: 15 },
-    { id: 'gyeongju', name: '경주', region: '경상북도', category: '역사', desc: '천년 신라의 숨결이 살아있는 지붕 없는 야외 박물관.', grad: 'linear-gradient(150deg,#a8792e,#7a5230)', l: 176, d: 9 },
-    { id: 'gangneung', name: '강릉', region: '강원도', category: '바다', desc: '커피거리와 경포 해변, 동해의 일출을 만나는 곳.', grad: 'linear-gradient(150deg,#248a9b,#2a689e)', l: 214, d: 11 },
-    { id: 'jeonju', name: '전주', region: '전라북도', category: '체험', desc: '한옥마을 골목과 비빔밥, 전통과 미식이 어우러진 도시.', grad: 'linear-gradient(150deg,#8a4a9e,#a8517a)', l: 198, d: 8 },
-    { id: 'yeosu', name: '여수', region: '전라남도', category: '바다', desc: '반짝이는 밤바다와 낭만 포차, 케이블카가 있는 남해의 보석.', grad: 'linear-gradient(150deg,#1f6a7c,#245f92)', l: 233, d: 7 },
-    { id: 'andong', name: '안동', region: '경상북도', category: '역사', desc: '하회마을과 전통 고택에서 느리게 흐르는 시간을 걷다.', grad: 'linear-gradient(150deg,#8a6538,#664329)', l: 121, d: 14 },
-    { id: 'tongyeong', name: '통영', region: '경상남도', category: '바다', desc: '케이블카에서 내려다보는 한려수도와 벽화마을 동피랑.', grad: 'linear-gradient(150deg,#1f9276,#238a9b)', l: 156, d: 6 },
-    { id: 'sokcho', name: '속초', region: '강원도', category: '자연', desc: '웅장한 설악산과 청초호, 산과 바다를 한번에 즐기는 여행.', grad: 'linear-gradient(150deg,#2f8047,#1f6a7c)', l: 187, d: 10 },
-    { id: 'damyang', name: '담양', region: '전라남도', category: '자연', desc: '바람에 사각이는 죽녹원 대나무숲을 걷는 초록빛 산책.', grad: 'linear-gradient(150deg,#358a44,#5e8a2e)', l: 98, d: 5 },
-    { id: 'namhae', name: '남해', region: '경상남도', category: '자연', desc: '계단식 다랑이논과 이국적인 독일마을이 있는 해안 절경.', grad: 'linear-gradient(150deg,#1f9e7e,#238a9b)', l: 134, d: 6 }
-  ];
 
   /* ------------------------------------------------------------------ *
    * State
@@ -45,20 +27,30 @@
     category: '전체',
     sort: 'recommended',
     favOnly: false,
-    favs: [],            // array of destination ids
-    userVote: {},        // { [id]: 'like' | 'dislike' }
+    favs: [],                // array of destination ids
+    userVote: {},             // { [id]: 'like' | 'dislike' }
     departDate: '',
-    spotlightId: null,   // id highlighted by "랜덤 여행지 추천"
+    spotlightId: null,        // id highlighted by "랜덤 여행지 추천"
     showTop: false,
-    modalOpen: false,
+
+    customDestinations: [],   // user-added destinations, persisted
+    reviews: {},              // { [destId]: [{ name, rating, comment }] } user-added reviews, persisted
+    photoOverrides: {},       // { [destId]: dataUrl } photos added to ANY card (incl. the 12 seeds), persisted
+    detailId: null,           // destination currently open in the detail modal
+
     submitted: false,
     submittedName: '',
     form: { name: '', email: '', phone: '', people: '', depart: '', arrive: '', agree: false },
-    errors: {}
+    errors: {},
+
+    destForm: { name: '', region: '', category: '', desc: '', photoDataUrl: '' },
+    destErrors: {},
+
+    reviewForm: { name: '', rating: 0, comment: '' },
+    reviewErrors: {}
   };
 
   let gridAnimated = false;     // run the card entrance animation only once
-  let lastFocused = null;       // element to restore focus to when the modal closes
 
   const prefersReducedMotion = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -73,8 +65,13 @@
       return v == null ? fallback : JSON.parse(v);
     } catch (e) { return fallback; }
   }
+  // Returns false on quota-exceeded (e.g. a large uploaded photo) so callers
+  // can warn the user instead of silently losing their submission.
   function save(key, value) {
-    try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch (e) {}
+    try {
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+      return true;
+    } catch (e) { return false; }
   }
 
   function init() {
@@ -85,19 +82,46 @@
     state.favs = load('roameo_favs', []);
     state.userVote = load('roameo_uservote', {});
     state.departDate = localStorage.getItem('roameo_depart') || '';
+    state.customDestinations = load('roameo_customDestinations', []);
+    state.reviews = load('roameo_reviews', {});
+    state.photoOverrides = load('roameo_photoOverrides', {});
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Text safety — user-typed strings (destination name/region/desc, review
+   * name/comment) get rendered via innerHTML templates, so escape them.
+   * ------------------------------------------------------------------ */
+  const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
   }
 
   /* ------------------------------------------------------------------ *
    * Derived values
    * ------------------------------------------------------------------ */
+  // Seed destinations + anything the user has added, combined.
+  function destinationsList() { return DESTINATIONS.concat(state.customDestinations); }
+  function findDestination(id) { return destinationsList().find((d) => d.id === id); }
+
   function likesOf(d) { return d.l + (state.userVote[d.id] === 'like' ? 1 : 0); }
   function dislikesOf(d) { return d.d + (state.userVote[d.id] === 'dislike' ? 1 : 0); }
   function scoreOf(d) { return likesOf(d) - dislikesOf(d); }
 
+  // The photo shown for a destination: a user-added override wins, then a
+  // custom destination's own uploaded photo, else null (→ gradient fallback).
+  // Works uniformly for the 12 built-in cards and user-added ones.
+  function photoOf(d) { return state.photoOverrides[d.id] || d.photo || null; }
+
+  // Built-in destinations ship with SEED_REVIEWS; anything a user submits is
+  // appended after those. Custom destinations simply have no seed reviews.
+  function getReviewsFor(id) {
+    return (SEED_REVIEWS[id] || []).concat(state.reviews[id] || []);
+  }
+
   // Search + category + favorites-only are all applied together, then sorted.
   function getFilteredSorted() {
     const q = state.search.trim().toLowerCase();
-    let list = DESTINATIONS.filter((d) => {
+    let list = destinationsList().filter((d) => {
       if (state.category !== '전체' && d.category !== state.category) return false;
       if (state.favOnly && !state.favs.includes(d.id)) return false;
       if (q && !(
@@ -118,6 +142,7 @@
    * ------------------------------------------------------------------ */
   const el = {
     app: document.getElementById('app'),
+    logoLink: document.getElementById('logoLink'),
     navCats: document.getElementById('navCats'),
     chipCats: document.getElementById('chipCats'),
     headerSearch: document.getElementById('headerSearch'),
@@ -129,6 +154,10 @@
     iconSun: document.getElementById('iconSun'),
     randomBtn: document.getElementById('randomBtn'),
     planBtn: document.getElementById('planBtn'),
+    headerTrip: document.getElementById('headerTrip'),
+    headerTripText: document.getElementById('headerTripText'),
+    tripHeroDday: document.getElementById('tripHeroDday'),
+    tripHeroSub: document.getElementById('tripHeroSub'),
     topName: document.getElementById('topName'),
     topScore: document.getElementById('topScore'),
     destCount: document.getElementById('destCount'),
@@ -149,6 +178,8 @@
     cdSecs: document.getElementById('cdSecs'),
     pollGrid: document.getElementById('pollGrid'),
     topBtn: document.getElementById('topBtn'),
+
+    // Application modal
     modalOverlay: document.getElementById('modalOverlay'),
     modalBox: document.getElementById('modalBox'),
     modalCloseBtn: document.getElementById('modalCloseBtn'),
@@ -163,8 +194,99 @@
     fPeople: document.getElementById('fPeople'),
     fDepart: document.getElementById('fDepart'),
     fArrive: document.getElementById('fArrive'),
-    fAgree: document.getElementById('fAgree')
+    fAgree: document.getElementById('fAgree'),
+
+    // Add-destination modal
+    addDestBtn: document.getElementById('addDestBtn'),
+    addDestOverlay: document.getElementById('addDestOverlay'),
+    addDestBox: document.getElementById('addDestBox'),
+    addDestCloseBtn: document.getElementById('addDestCloseBtn'),
+    addDestForm: document.getElementById('addDestForm'),
+    fDestName: document.getElementById('fDestName'),
+    fDestRegion: document.getElementById('fDestRegion'),
+    fDestCategory: document.getElementById('fDestCategory'),
+    fDestDesc: document.getElementById('fDestDesc'),
+    fDestPhoto: document.getElementById('fDestPhoto'),
+    destPhotoPreviewWrap: document.getElementById('destPhotoPreviewWrap'),
+    destPhotoPreview: document.getElementById('destPhotoPreview'),
+    destPhotoRemoveBtn: document.getElementById('destPhotoRemoveBtn'),
+
+    // Detail modal
+    detailOverlay: document.getElementById('detailOverlay'),
+    detailBox: document.getElementById('detailBox'),
+    detailCloseBtn: document.getElementById('detailCloseBtn'),
+    detailBanner: document.getElementById('detailBanner'),
+    detailBadge: document.getElementById('detailBadge'),
+    detailPhotoInput: document.getElementById('detailPhotoInput'),
+    detailPhotoBtnText: document.getElementById('detailPhotoBtnText'),
+    detailPhotoRemoveBtn: document.getElementById('detailPhotoRemoveBtn'),
+    detailName: document.getElementById('detailName'),
+    detailRegion: document.getElementById('detailRegion'),
+    detailDesc: document.getElementById('detailDesc'),
+    detailLikes: document.getElementById('detailLikes'),
+    detailDislikes: document.getElementById('detailDislikes'),
+    detailRatingStars: document.getElementById('detailRatingStars'),
+    detailRatingAvg: document.getElementById('detailRatingAvg'),
+    detailReviewCount: document.getElementById('detailReviewCount'),
+    detailReviews: document.getElementById('detailReviews'),
+    reviewForm: document.getElementById('reviewForm'),
+    reviewStarPicker: document.getElementById('reviewStarPicker'),
+    fReviewName: document.getElementById('fReviewName'),
+    fReviewComment: document.getElementById('fReviewComment'),
+
+    // Random pick modal
+    randomOverlay: document.getElementById('randomOverlay'),
+    randomBox: document.getElementById('randomBox'),
+    randomCloseBtn: document.getElementById('randomCloseBtn'),
+    reelStrip: document.getElementById('reelStrip'),
+    randomResult: document.getElementById('randomResult'),
+    randomResultName: document.getElementById('randomResultName'),
+    randomResultRegion: document.getElementById('randomResultRegion'),
+    randomDetailBtn: document.getElementById('randomDetailBtn'),
+    randomAgainBtn: document.getElementById('randomAgainBtn')
   };
+
+  /* ------------------------------------------------------------------ *
+   * Generic modal plumbing — shared by the application, add-destination,
+   * and detail dialogs so focus-trap / Escape / scroll-lock isn't
+   * duplicated three times.
+   * ------------------------------------------------------------------ */
+  let openOverlay = null;
+  let returnFocusTo = null;
+
+  function focusableIn(container) {
+    return Array.from(container.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )).filter((n) => !n.disabled && n.offsetParent !== null);
+  }
+
+  function openDialog(overlay, initialFocusEl) {
+    returnFocusTo = document.activeElement;
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+    openOverlay = overlay;
+    requestAnimationFrame(() => initialFocusEl && initialFocusEl.focus());
+  }
+
+  function closeDialog(overlay) {
+    overlay.hidden = true;
+    openOverlay = null;
+    // Only unlock scroll if no other dialog is underneath it.
+    document.body.style.overflow = '';
+    if (returnFocusTo && typeof returnFocusTo.focus === 'function') returnFocusTo.focus();
+  }
+
+  function onGlobalKeydown(e) {
+    if (!openOverlay) return;
+    if (e.key === 'Escape') { closeDialog(openOverlay); return; }
+    if (e.key !== 'Tab') return;
+    const box = openOverlay.querySelector('[role="dialog"]') || openOverlay.firstElementChild;
+    const items = focusableIn(box);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 
   /* ------------------------------------------------------------------ *
    * Render: theme (dark mode)
@@ -212,6 +334,7 @@
     renderCategoryControls();
     renderGrid();
     renderHeroStats();
+    renderMode();
   }
 
   /* ------------------------------------------------------------------ *
@@ -224,18 +347,27 @@
   }
   function onSearchInput(e) {
     state.search = e.target.value;
+    // Searching always looks across ALL destinations, so drop any active
+    // category back to "전체".
+    if (state.category !== '전체') {
+      state.category = '전체';
+      state.spotlightId = null;
+      renderCategoryControls();
+    }
     syncSearchInputs();
     renderGrid();
+    renderMode();
   }
 
   /* ------------------------------------------------------------------ *
    * Render: hero stat cards
    * ------------------------------------------------------------------ */
   function renderHeroStats() {
-    const top = [...DESTINATIONS].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
+    const all = destinationsList();
+    const top = [...all].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
     el.topName.textContent = top.name;
     el.topScore.textContent = '추천 점수 ' + scoreOf(top);
-    el.destCount.textContent = DESTINATIONS.length + '곳';
+    el.destCount.textContent = all.length + '곳';
     el.favCount.textContent = state.favs.length + '개';
   }
 
@@ -262,9 +394,17 @@
     list.forEach((d, i) => {
       const isFav = state.favs.includes(d.id);
       const isSpotlight = state.spotlightId === d.id;
+      const name = escapeHtml(d.name), region = escapeHtml(d.region), desc = escapeHtml(d.desc);
+      // Uploaded photo wins over the placeholder gradient when present.
+      const photo = photoOf(d);
+      const imageStyle = photo ? `background:center/cover no-repeat url(${photo})` : `background:${d.grad}`;
 
       const card = document.createElement('article');
       card.className = 'card' + (isSpotlight ? ' is-spotlight' : '');
+      // The whole card opens the detail view (keyboard-accessible too).
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', d.name + ' 상세 보기');
       // Stagger a gentle entrance on the very first paint only.
       if (!gridAnimated) {
         card.classList.add('card--enter');
@@ -273,34 +413,46 @@
 
       card.innerHTML = `
         <div class="card__image-wrap">
-          <div class="card__image" style="background:${d.grad}"></div>
+          <div class="card__image" style="${imageStyle}"></div>
           <div class="card__image-shade"></div>
-          <span class="card__badge">${d.category}</span>
+          <span class="card__badge">${escapeHtml(d.category)}</span>
           <button class="card__fav${isFav ? ' is-fav' : ''}" type="button"
-                  aria-pressed="${isFav}" aria-label="${d.name} ${isFav ? '찜 해제' : '찜하기'}">
+                  aria-pressed="${isFav}" aria-label="${name} ${isFav ? '찜 해제' : '찜하기'}">
             <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.5-9.3-9C1.2 8 2.5 5 5.5 5 7.5 5 9 6.3 12 9c3-2.7 4.5-4 6.5-4 3 0 4.3 3 2.8 6-2.3 4.5-9.3 9-9.3 9Z"/></svg>
           </button>
           ${isSpotlight ? '<span class="card__spotlight-tag">오늘의 추천</span>' : ''}
         </div>
         <div class="card__body">
           <div class="card__title-row">
-            <h3 class="card__title">${d.name}</h3>
-            <span class="card__region">${d.region}</span>
+            <h3 class="card__title">${name}</h3>
+            <span class="card__region">${region}</span>
           </div>
-          <p class="card__desc">${d.desc}</p>
+          <p class="card__desc">${desc}</p>
           <div class="card__meta">
             <span class="likes">▲ ${likesOf(d)}</span>
             <span>▼ ${dislikesOf(d)}</span>
-            <span class="more">자세히
+            <button type="button" class="card__detail-btn">자세히
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            </span>
+            </button>
           </div>
         </div>
       `;
 
+      // Clicking anywhere on the card opens the detail view…
+      card.addEventListener('click', () => openDetail(d.id));
+      // …and Enter / Space do the same for keyboard users.
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(d.id); }
+      });
+      // The ♥ button toggles favourite without opening the detail view.
       card.querySelector('.card__fav').addEventListener('click', (e) => {
         e.stopPropagation();
         toggleFav(d.id);
+      });
+      // The "자세히" button already opens it; stop it from double-firing.
+      card.querySelector('.card__detail-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDetail(d.id);
       });
 
       el.cardGrid.appendChild(card);
@@ -325,6 +477,13 @@
     renderCategoryControls();
     renderToolbarState();
     renderGrid();
+    renderMode();
+  }
+
+  // Logo click → clear all filters and return to the top of the home view.
+  function goHome() {
+    resetFilters();
+    scrollTop();
   }
 
   /* ------------------------------------------------------------------ *
@@ -334,31 +493,59 @@
     let dday = 'D-?';
     let label = '출발일을 선택하세요';
     let days = '00', hours = '00', mins = '00', secs = '00';
+    let tripSub = '출발일을 선택하세요';   // hero widget sub-line
+    let headerText = '출발 미정';           // header pill text
 
     if (state.departDate) {
       const target = new Date(state.departDate + 'T00:00:00').getTime();
       const diff = target - Date.now();
       if (diff <= 0 && diff > -86400000) {
         dday = 'D-DAY'; label = '드디어 출발일이에요!';
+        tripSub = '오늘 출발!'; headerText = 'D-DAY';
       } else if (diff <= 0) {
         dday = '완료'; label = '여행이 지났어요';
+        tripSub = '여행이 지났어요'; headerText = '완료';
       } else {
         const p = (n) => String(n).padStart(2, '0');
-        days = p(Math.floor(diff / 86400000));
-        hours = p(Math.floor((diff % 86400000) / 3600000));
+        const nDays = Math.floor(diff / 86400000);
+        const nHours = Math.floor((diff % 86400000) / 3600000);
+        days = p(nDays); hours = p(nHours);
         mins = p(Math.floor((diff % 3600000) / 60000));
         secs = p(Math.floor((diff % 60000) / 1000));
-        dday = 'D-' + Number(days);
+        dday = 'D-' + nDays;
         label = '출발까지 남은 시간';
+        tripSub = `${nDays}일 ${nHours}시간 남았어요`;
+        headerText = `${dday} · ${nDays}일 ${nHours}시간`;
       }
     }
 
+    // Countdown section (plan card)
     el.cdDday.textContent = dday;
     el.cdLabel.textContent = label;
     el.cdDays.textContent = days;
     el.cdHours.textContent = hours;
     el.cdMins.textContent = mins;
     el.cdSecs.textContent = secs;
+
+    // Hero widget + header pill share the same countdown
+    el.tripHeroDday.textContent = dday;
+    el.tripHeroSub.textContent = tripSub;
+    el.headerTripText.textContent = headerText;
+    el.headerTrip.title = state.departDate ? `${dday} · ${tripSub}` : '출발일을 선택하세요';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Home vs. filtering view — a search / non-"전체" category / favorites-only
+   * filter switches to a list-only layout (hero, plan, poll hidden) and moves
+   * the trip countdown into the header.
+   * ------------------------------------------------------------------ */
+  function isFiltering() {
+    return state.search.trim() !== '' || state.category !== '전체' || state.favOnly;
+  }
+  function renderMode() {
+    const filtering = isFiltering();
+    el.app.classList.toggle('is-filtering', filtering);
+    el.headerTrip.hidden = !filtering;
   }
 
   /* ------------------------------------------------------------------ *
@@ -372,7 +559,7 @@
   }
 
   function renderPoll() {
-    const ranked = [...DESTINATIONS].sort((a, b) => scoreOf(b) - scoreOf(a)).slice(0, 6);
+    const ranked = [...destinationsList()].sort((a, b) => scoreOf(b) - scoreOf(a)).slice(0, 6);
     const maxScore = ranked.length ? Math.max(1, scoreOf(ranked[0])) : 1;
 
     el.pollGrid.innerHTML = ranked.map((d, i) => {
@@ -380,13 +567,14 @@
       const lk = likesOf(d), dk = dislikesOf(d), score = lk - dk;
       const uv = state.userVote[d.id];
       const width = Math.max(4, Math.round(score / maxScore * 100)) + '%';
+      const name = escapeHtml(d.name), region = escapeHtml(d.region);
       return `
         <div class="poll-card" data-id="${d.id}">
           <div class="poll-card__top">
             <span class="poll-card__rank${rankClass(rank)}">${rank}</span>
             <div class="poll-card__info">
-              <div class="poll-card__name">${d.name}</div>
-              <div class="poll-card__region">${d.region}</div>
+              <div class="poll-card__name">${name}</div>
+              <div class="poll-card__region">${region}</div>
             </div>
             <div class="poll-card__score-wrap">
               <div class="poll-card__score">${score}</div>
@@ -401,11 +589,11 @@
             <div class="poll-card__bar-fill" style="width:${width}"></div>
           </div>
           <div class="poll-card__actions">
-            <button class="poll-btn like${uv === 'like' ? ' is-active' : ''}" type="button" data-dir="like" aria-pressed="${uv === 'like'}" aria-label="${d.name} 좋아요">
+            <button class="poll-btn like${uv === 'like' ? ' is-active' : ''}" type="button" data-dir="like" aria-pressed="${uv === 'like'}" aria-label="${name} 좋아요">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v10M7 10l4-7a2 2 0 0 1 2 2v3h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/></svg>
               좋아요 ${lk}
             </button>
-            <button class="poll-btn dislike${uv === 'dislike' ? ' is-active' : ''}" type="button" data-dir="dislike" aria-pressed="${uv === 'dislike'}" aria-label="${d.name} 싫어요">
+            <button class="poll-btn dislike${uv === 'dislike' ? ' is-active' : ''}" type="button" data-dir="dislike" aria-pressed="${uv === 'dislike'}" aria-label="${name} 싫어요">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V4M17 14l-4 7a2 2 0 0 1-2-2v-3H6a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 7.2 4H17"/></svg>
               싫어요 ${dk}
             </button>
@@ -434,11 +622,35 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * Random pick — spotlight a destination and scroll to the grid
+   * Random pick — slot-machine reel inside a blurred popup.
+   * Cards stream downward fast, ease-out to a stop, and one is chosen.
    * ------------------------------------------------------------------ */
+  const REEL_H = 116;          // item height (104) + gap (12) — MUST match CSS
+  const REEL_LEAD = 2;         // rows above the winner (winner lands in row index 2 → middle)
+  const REEL_TRAILING = 34;    // rows spun through before the winner settles
+  const REEL_DURATION = 3200;  // ms of spin
+  let reelWinnerId = null;
+  let reelRaf = null;          // pending requestAnimationFrame id, for cleanup
+
+  // easeOutQuart — fast start, long smooth deceleration (the "촤라락 → 스르륵 정지" feel)
+  const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+
+  const randDest = (all) => all[Math.floor(Math.random() * all.length)];
+
+  function reelItemHtml(d) {
+    const photo = photoOf(d);
+    const bg = photo ? `background-image:url(${photo})` : `background:${d.grad}`;
+    return `
+      <div class="reel-item">
+        <div class="reel-item__thumb" style="${bg}"></div>
+        <div>
+          <div class="reel-item__name">${escapeHtml(d.name)}</div>
+          <div class="reel-item__region">${escapeHtml(d.region)} · ${escapeHtml(d.category)}</div>
+        </div>
+      </div>`;
+  }
+
   function onRandom() {
-    const d = DESTINATIONS[Math.floor(Math.random() * DESTINATIONS.length)];
-    state.spotlightId = d.id;
     state.category = '전체';
     state.search = '';
     state.favOnly = false;
@@ -446,7 +658,84 @@
     renderCategoryControls();
     renderToolbarState();
     renderGrid();
-    setTimeout(scrollToGrid, 60);
+    renderMode();
+
+    openDialog(el.randomOverlay, el.randomCloseBtn);
+    spinReel();
+  }
+
+  function spinReel() {
+    const all = destinationsList();
+    const winner = randDest(all);
+    reelWinnerId = winner.id;
+
+    // Strip: [lead fillers, WINNER, trailing fillers]. The winner sits at
+    // index REEL_LEAD; trailing fillers give the reel room to spin through.
+    const items = [];
+    for (let i = 0; i < REEL_LEAD; i++) items.push(randDest(all));
+    items.push(winner);
+    for (let i = 0; i < REEL_TRAILING; i++) items.push(randDest(all));
+    el.reelStrip.innerHTML = items.map(reelItemHtml).join('');
+    el.randomResult.hidden = true;
+
+    // Offset that centers the winner in the middle highlight row.
+    const finalOffset = -(REEL_LEAD - 1) * REEL_H;
+    // Start deep in the trailing fillers, then scroll DOWN to the winner.
+    const startOffset = finalOffset - REEL_TRAILING * REEL_H;
+
+    if (reelRaf) { cancelAnimationFrame(reelRaf); reelRaf = null; }
+    el.reelStrip.style.transition = 'none';
+
+    if (prefersReducedMotion()) {
+      el.reelStrip.style.transform = `translateY(${finalOffset}px)`;
+      landReel();
+      return;
+    }
+
+    // Hand-rolled rAF tween so the easing curve is exactly easeOutQuart.
+    const distance = finalOffset - startOffset;
+    const t0 = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / REEL_DURATION);
+      const offset = startOffset + distance * easeOutQuart(t);
+      el.reelStrip.style.transform = `translateY(${offset}px)`;
+      if (t < 1) {
+        reelRaf = requestAnimationFrame(step);
+      } else {
+        reelRaf = null;
+        landReel();
+      }
+    };
+    el.reelStrip.style.transform = `translateY(${startOffset}px)`;
+    reelRaf = requestAnimationFrame(step);
+  }
+
+  function landReel() {
+    const winner = findDestination(reelWinnerId);
+    if (!winner) return;
+    // Emphasise the winning row (the winner is the child at index REEL_LEAD).
+    const winRow = el.reelStrip.children[REEL_LEAD];
+    if (winRow) winRow.classList.add('reel-item--win');
+
+    el.randomResultName.textContent = winner.name;
+    el.randomResultRegion.textContent = `${winner.region} · ${winner.category}`;
+    el.randomResult.hidden = false;
+    requestAnimationFrame(() => el.randomDetailBtn.focus());
+
+    // Also spotlight it in the grid underneath, so it's easy to find on close.
+    state.spotlightId = winner.id;
+    renderGrid();
+  }
+
+  function closeRandomModal() {
+    if (reelRaf) { cancelAnimationFrame(reelRaf); reelRaf = null; }
+    closeDialog(el.randomOverlay);
+  }
+  function randomAgain() { spinReel(); }
+  function randomOpenDetail() {
+    const id = reelWinnerId;
+    closeRandomModal();
+    if (id) openDetail(id);
   }
 
   function scrollToSection(id) {
@@ -458,24 +747,17 @@
   const scrollTop = () => window.scrollTo({ top: 0, behavior: scrollBehavior() });
 
   /* ------------------------------------------------------------------ *
-   * Application modal + form
+   * Application modal + form (여행 신청)
    * ------------------------------------------------------------------ */
   function openModal() {
-    lastFocused = document.activeElement;
-    state.modalOpen = true;
     state.submitted = false;
     if (!state.form.depart) state.form.depart = state.departDate;
     renderModal();
-    // Move focus into the dialog once it is visible.
-    requestAnimationFrame(() => {
-      (state.submitted ? el.modalConfirmBtn : el.fName).focus();
-    });
+    openDialog(el.modalOverlay, state.submitted ? el.modalConfirmBtn : el.fName);
   }
 
   function closeModal() {
-    state.modalOpen = false;
-    renderModal();
-    if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+    closeDialog(el.modalOverlay);
   }
 
   function newApplication() {
@@ -487,20 +769,14 @@
   }
 
   function renderModal() {
-    el.modalOverlay.hidden = !state.modalOpen;
-    // Lock background scroll while the dialog is open.
-    document.body.style.overflow = state.modalOpen ? 'hidden' : '';
-    if (!state.modalOpen) return;
-
     el.modalSuccess.hidden = !state.submitted;
     el.applicationForm.hidden = state.submitted;
     if (state.submitted) {
       el.modalSuccessDesc.innerHTML =
-        `${state.submittedName}님, 입력하신 이메일로<br>여행 상세 안내를 보내드릴게요.`;
+        `${escapeHtml(state.submittedName)}님, 입력하신 이메일로<br>여행 상세 안내를 보내드릴게요.`;
       return;
     }
 
-    // Reflect form values.
     el.fName.value = state.form.name;
     el.fEmail.value = state.form.email;
     el.fPhone.value = state.form.phone;
@@ -509,7 +785,6 @@
     el.fArrive.value = state.form.arrive;
     el.fAgree.checked = state.form.agree;
 
-    // Reflect validation errors (border, message, aria-invalid).
     ['name', 'email', 'phone', 'people', 'depart', 'arrive'].forEach((k) => {
       const input = el['f' + k[0].toUpperCase() + k.slice(1)];
       const errorEl = document.getElementById('f' + k[0].toUpperCase() + k.slice(1) + 'Error');
@@ -549,7 +824,6 @@
     state.errors = er;
     if (Object.keys(er).length) {
       renderModal();
-      // Move focus to the first field with an error for quick correction.
       const order = ['name', 'email', 'phone', 'people', 'depart', 'arrive'];
       const firstBad = order.find((k) => er[k]);
       if (firstBad) el['f' + firstBad[0].toUpperCase() + firstBad.slice(1)].focus();
@@ -564,27 +838,319 @@
     requestAnimationFrame(() => el.modalConfirmBtn.focus());
   }
 
-  // Keep Tab focus inside the dialog and close it on Escape.
-  function focusableInModal() {
-    return Array.from(el.modalBox.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )).filter((n) => !n.disabled && n.offsetParent !== null);
+  /* ------------------------------------------------------------------ *
+   * Add-destination modal + form (여행지 추가)
+   * ------------------------------------------------------------------ */
+  function populateDestCategorySelect() {
+    el.fDestCategory.innerHTML = CATS.filter((c) => c !== '전체')
+      .map((c) => `<option value="${c}">${c}</option>`)
+      .join('');
   }
-  function onModalKeydown(e) {
-    if (!state.modalOpen) return;
-    if (e.key === 'Escape') { closeModal(); return; }
-    if (e.key !== 'Tab') return;
-    const items = focusableInModal();
-    if (!items.length) return;
-    const first = items[0], last = items[items.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+
+  function resetDestForm() {
+    state.destForm = { name: '', region: '', category: el.fDestCategory.options[0]?.value || '', desc: '', photoDataUrl: '' };
+    state.destErrors = {};
+    el.fDestName.value = '';
+    el.fDestRegion.value = '';
+    el.fDestCategory.value = state.destForm.category;
+    el.fDestDesc.value = '';
+    el.fDestPhoto.value = '';
+    el.destPhotoPreviewWrap.hidden = true;
+    renderDestFormErrors();
+  }
+
+  function openAddDestModal() {
+    resetDestForm();
+    openDialog(el.addDestOverlay, el.fDestName);
+  }
+  function closeAddDestModal() { closeDialog(el.addDestOverlay); }
+
+  function renderDestFormErrors() {
+    const fields = {
+      name: [el.fDestName, 'fDestNameError'],
+      region: [el.fDestRegion, 'fDestRegionError'],
+      category: [el.fDestCategory, 'fDestCategoryError'],
+      desc: [el.fDestDesc, 'fDestDescError']
+    };
+    Object.entries(fields).forEach(([key, [input, errId]]) => {
+      const hasError = !!state.destErrors[key];
+      const errorEl = document.getElementById(errId);
+      input.classList.toggle('has-error', hasError);
+      input.setAttribute('aria-invalid', String(hasError));
+      errorEl.textContent = hasError ? state.destErrors[key] : '';
+      errorEl.hidden = !hasError;
+    });
+    const photoErr = document.getElementById('fDestPhotoError');
+    photoErr.textContent = state.destErrors.photo || '';
+    photoErr.hidden = !state.destErrors.photo;
+    el.fDestPhoto.classList.toggle('has-error', !!state.destErrors.photo);
+  }
+
+  // Downscale + re-encode the uploaded image so a phone photo (often several
+  // MB) doesn't blow through localStorage's ~5MB quota.
+  function resizeImageFile(file, maxDim, quality) {
+    maxDim = maxDim || 900;
+    quality = quality || 0.8;
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function onDestPhotoChange(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      state.destErrors = { ...state.destErrors, photo: '이미지 파일만 업로드할 수 있어요.' };
+      renderDestFormErrors();
+      el.fDestPhoto.value = '';
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageFile(file);
+      state.destForm.photoDataUrl = dataUrl;
+      state.destErrors = { ...state.destErrors, photo: '' };
+      el.destPhotoPreview.src = dataUrl;
+      el.destPhotoPreviewWrap.hidden = false;
+      renderDestFormErrors();
+    } catch (err) {
+      state.destErrors = { ...state.destErrors, photo: '사진을 불러오지 못했어요. 다른 파일을 시도해주세요.' };
+      renderDestFormErrors();
+    }
+  }
+
+  function removeDestPhoto() {
+    state.destForm.photoDataUrl = '';
+    el.fDestPhoto.value = '';
+    el.destPhotoPreviewWrap.hidden = true;
+  }
+
+  function submitDestination(e) {
+    e.preventDefault();
+    const f = {
+      name: el.fDestName.value,
+      region: el.fDestRegion.value,
+      category: el.fDestCategory.value,
+      desc: el.fDestDesc.value
+    };
+    const er = {};
+    if (!f.name.trim()) er.name = '여행지 이름을 입력해주세요.';
+    if (!f.region.trim()) er.region = '지역을 입력해주세요.';
+    if (!f.category) er.category = '카테고리를 선택해주세요.';
+    if (!f.desc.trim() || f.desc.trim().length < 5) er.desc = '설명을 5자 이상 입력해주세요.';
+
+    state.destErrors = er;
+    if (Object.keys(er).length) {
+      renderDestFormErrors();
+      const order = ['name', 'region', 'category', 'desc'];
+      const firstBad = order.find((k) => er[k]);
+      if (firstBad) el['fDest' + firstBad[0].toUpperCase() + firstBad.slice(1)].focus();
+      return;
+    }
+
+    const id = 'dest-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const grad = PLACEHOLDER_GRADIENTS[Math.floor(Math.random() * PLACEHOLDER_GRADIENTS.length)];
+    const newDest = {
+      id, name: f.name.trim(), region: f.region.trim(), category: f.category,
+      desc: f.desc.trim(), grad, photo: state.destForm.photoDataUrl || null,
+      l: 0, d: 0, custom: true
+    };
+
+    const nextCustom = [...state.customDestinations, newDest];
+    const ok = save('roameo_customDestinations', nextCustom);
+    if (!ok) {
+      state.destErrors = { photo: '저장 공간이 부족해요. 사진 없이 등록하거나 다른 사진으로 시도해주세요.' };
+      renderDestFormErrors();
+      return;
+    }
+    state.customDestinations = nextCustom;
+
+    closeAddDestModal();
+    renderGrid();
+    renderHeroStats();
+    renderPoll();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Detail modal (자세히) + reviews
+   * ------------------------------------------------------------------ */
+  function starRowHtml(rating) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) html += `<span class="${i <= rating ? '' : 'star--empty'}">★</span>`;
+    return html;
+  }
+
+  function openDetail(id) {
+    state.detailId = id;
+    state.reviewForm = { name: '', rating: 0, comment: '' };
+    state.reviewErrors = {};
+    renderDetailModal();
+    openDialog(el.detailOverlay, el.detailCloseBtn);
+  }
+  function closeDetailModal() { closeDialog(el.detailOverlay); }
+
+  // Upload / replace the photo for the currently open destination (any card).
+  async function onDetailPhotoChange(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { el.detailPhotoInput.value = ''; return; }
+    try {
+      const dataUrl = await resizeImageFile(file);
+      const next = { ...state.photoOverrides, [state.detailId]: dataUrl };
+      const ok = save('roameo_photoOverrides', next);
+      if (!ok) {
+        alert('저장 공간이 부족해요. 더 작은 사진으로 다시 시도해주세요.');
+        el.detailPhotoInput.value = '';
+        return;
+      }
+      state.photoOverrides = next;
+      renderDetailModal();
+      renderGrid();
+    } catch (err) {
+      alert('사진을 불러오지 못했어요. 다른 파일을 시도해주세요.');
+      el.detailPhotoInput.value = '';
+    }
+  }
+
+  function removeDetailPhoto() {
+    const next = { ...state.photoOverrides };
+    delete next[state.detailId];
+    state.photoOverrides = next;
+    save('roameo_photoOverrides', next);
+    renderDetailModal();
+    renderGrid();
+  }
+
+  function renderDetailModal() {
+    const d = findDestination(state.detailId);
+    if (!d) return;
+
+    const photo = photoOf(d);
+    el.detailBanner.style.background = photo ? `center/cover no-repeat url(${photo})` : d.grad;
+    el.detailBadge.textContent = d.category;
+    el.detailName.textContent = d.name;
+    el.detailRegion.textContent = d.region;
+    el.detailDesc.textContent = d.desc;
+    el.detailLikes.textContent = likesOf(d);
+    el.detailDislikes.textContent = dislikesOf(d);
+
+    // Photo add/replace/remove controls in the banner.
+    el.detailPhotoBtnText.textContent = photo ? '사진 변경' : '사진 추가';
+    el.detailPhotoRemoveBtn.hidden = !photo;
+    el.detailPhotoInput.value = '';
+
+    const reviews = getReviewsFor(d.id);
+    const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
+    el.detailRatingStars.innerHTML = starRowHtml(Math.round(avg));
+    el.detailRatingAvg.textContent = reviews.length ? avg.toFixed(1) : '리뷰 없음';
+    el.detailReviewCount.textContent = reviews.length ? `(${reviews.length})` : '';
+
+    el.detailReviews.innerHTML = reviews.length
+      ? reviews.map((r) => `
+        <li class="review-item">
+          <div class="review-item__top">
+            <span class="review-item__name">${escapeHtml(r.name)}</span>
+            <span class="review-item__stars">${starRowHtml(r.rating)}</span>
+          </div>
+          <p class="review-item__comment">${escapeHtml(r.comment)}</p>
+        </li>`).join('')
+      : '<li class="review-empty">아직 등록된 리뷰가 없어요. 첫 리뷰를 남겨보세요!</li>';
+
+    renderReviewForm();
+  }
+
+  // Sets input values from state (only needed when the modal opens / resets)
+  // and delegates the star picker + error text to their own renderers.
+  function renderReviewForm() {
+    el.fReviewName.value = state.reviewForm.name;
+    el.fReviewComment.value = state.reviewForm.comment;
+    renderStarPicker();
+    renderReviewErrors();
+  }
+
+  // Rebuilt independently of renderReviewForm() so that picking a star
+  // rating never touches (and can't clobber) whatever the user has already
+  // typed into the name/comment fields.
+  function renderStarPicker() {
+    el.reviewStarPicker.innerHTML = [1, 2, 3, 4, 5].map((v) => `
+      <button type="button" class="star-btn${v <= state.reviewForm.rating ? ' is-on' : ''}"
+              data-val="${v}" role="radio" aria-checked="${v === state.reviewForm.rating}" aria-label="별점 ${v}점">★</button>
+    `).join('');
+    el.reviewStarPicker.querySelectorAll('.star-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.reviewForm.rating = Number(btn.getAttribute('data-val'));
+        state.reviewErrors.rating = '';
+        renderStarPicker();
+        renderReviewErrors();
+      });
+    });
+  }
+
+  function renderReviewErrors() {
+    const nameErr = document.getElementById('fReviewNameError');
+    nameErr.textContent = state.reviewErrors.name || '';
+    nameErr.hidden = !state.reviewErrors.name;
+    el.fReviewName.classList.toggle('has-error', !!state.reviewErrors.name);
+
+    const ratingErr = document.getElementById('fReviewRatingError');
+    ratingErr.textContent = state.reviewErrors.rating || '';
+    ratingErr.hidden = !state.reviewErrors.rating;
+
+    const commentErr = document.getElementById('fReviewCommentError');
+    commentErr.textContent = state.reviewErrors.comment || '';
+    commentErr.hidden = !state.reviewErrors.comment;
+    el.fReviewComment.classList.toggle('has-error', !!state.reviewErrors.comment);
+  }
+
+  function submitReview(e) {
+    e.preventDefault();
+    // name/comment are kept in sync live via their input listeners (see
+    // bindEvents) so reading from state here can't be stale.
+    const f = state.reviewForm;
+    const er = {};
+    if (!f.name.trim()) er.name = '이름을 입력해주세요.';
+    if (!f.rating) er.rating = '별점을 선택해주세요.';
+    if (!f.comment.trim()) er.comment = '한줄평을 입력해주세요.';
+
+    state.reviewErrors = er;
+    if (Object.keys(er).length) { renderReviewErrors(); return; }
+
+    const list = state.reviews[state.detailId] ? [...state.reviews[state.detailId]] : [];
+    list.push({ name: f.name.trim(), rating: f.rating, comment: f.comment.trim() });
+    state.reviews = { ...state.reviews, [state.detailId]: list };
+    save('roameo_reviews', state.reviews);
+
+    state.reviewForm = { name: '', rating: 0, comment: '' };
+    state.reviewErrors = {};
+    renderDetailModal();
   }
 
   /* ------------------------------------------------------------------ *
    * Event wiring
    * ------------------------------------------------------------------ */
   function bindEvents() {
+    // Logo → home
+    el.logoLink.addEventListener('click', (e) => { e.preventDefault(); goHome(); });
+
     // Dark mode
     el.themeToggle.addEventListener('click', () => {
       state.theme = state.theme === 'light' ? 'dark' : 'light';
@@ -602,16 +1168,18 @@
     el.randomBtn.addEventListener('click', onRandom);
     el.planBtn.addEventListener('click', scrollToPlan);
 
-    // Sort + favorites-only
+    // Sort + favorites-only + add destination
     el.sortSelect.addEventListener('change', (e) => { state.sort = e.target.value; renderGrid(); });
     el.favOnlyBtn.addEventListener('click', () => {
       state.favOnly = !state.favOnly;
       renderToolbarState();
       renderGrid();
+      renderMode();
     });
     el.resetFiltersBtn.addEventListener('click', resetFilters);
+    el.addDestBtn.addEventListener('click', openAddDestModal);
 
-    // Countdown date + open modal
+    // Countdown date + open application modal
     el.departDate.addEventListener('input', (e) => {
       state.departDate = e.target.value;
       save('roameo_depart', state.departDate);
@@ -629,15 +1197,15 @@
     }, { passive: true });
     el.topBtn.addEventListener('click', scrollTop);
 
-    // Modal open/close + focus trap
+    // Shared modal keyboard behaviour (Escape + focus trap)
+    document.addEventListener('keydown', onGlobalKeydown);
+
+    // Application modal
     el.modalOverlay.addEventListener('click', closeModal);
     el.modalBox.addEventListener('click', (e) => e.stopPropagation());
     el.modalCloseBtn.addEventListener('click', closeModal);
     el.modalConfirmBtn.addEventListener('click', closeModal);
     el.newApplicationBtn.addEventListener('click', newApplication);
-    document.addEventListener('keydown', onModalKeydown);
-
-    // Form fields
     el.fName.addEventListener('input', setFormField('name'));
     el.fEmail.addEventListener('input', setFormField('email'));
     el.fPhone.addEventListener('input', setFormField('phone'));
@@ -646,6 +1214,31 @@
     el.fArrive.addEventListener('input', setFormField('arrive'));
     el.fAgree.addEventListener('change', (e) => { state.form.agree = e.target.checked; });
     el.applicationForm.addEventListener('submit', submitForm);
+
+    // Add-destination modal
+    el.addDestOverlay.addEventListener('click', closeAddDestModal);
+    el.addDestBox.addEventListener('click', (e) => e.stopPropagation());
+    el.addDestCloseBtn.addEventListener('click', closeAddDestModal);
+    el.fDestPhoto.addEventListener('change', onDestPhotoChange);
+    el.destPhotoRemoveBtn.addEventListener('click', removeDestPhoto);
+    el.addDestForm.addEventListener('submit', submitDestination);
+
+    // Detail modal
+    el.detailOverlay.addEventListener('click', closeDetailModal);
+    el.detailBox.addEventListener('click', (e) => e.stopPropagation());
+    el.detailCloseBtn.addEventListener('click', closeDetailModal);
+    el.detailPhotoInput.addEventListener('change', onDetailPhotoChange);
+    el.detailPhotoRemoveBtn.addEventListener('click', removeDetailPhoto);
+    el.fReviewName.addEventListener('input', (e) => { state.reviewForm.name = e.target.value; });
+    el.fReviewComment.addEventListener('input', (e) => { state.reviewForm.comment = e.target.value; });
+    el.reviewForm.addEventListener('submit', submitReview);
+
+    // Random pick modal
+    el.randomOverlay.addEventListener('click', closeRandomModal);
+    el.randomBox.addEventListener('click', (e) => e.stopPropagation());
+    el.randomCloseBtn.addEventListener('click', closeRandomModal);
+    el.randomAgainBtn.addEventListener('click', randomAgain);
+    el.randomDetailBtn.addEventListener('click', randomOpenDetail);
   }
 
   /* ------------------------------------------------------------------ *
@@ -661,6 +1254,8 @@
     el.departDate.value = state.departDate;
     renderCountdown();
     renderPoll();
+    populateDestCategorySelect();
+    renderMode();
   }
 
   init();

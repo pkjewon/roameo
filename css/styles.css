@@ -236,6 +236,31 @@ a { text-decoration: none; }
 .stat-card__value--accent { color: var(--accent); }
 .stat-card__sub { font-size: 13.5px; color: var(--accent); font-weight: 700; }
 
+/* Trip countdown widget in the hero (above the ranking card) */
+.trip-hero { display: flex; align-items: center; gap: 14px; }
+.trip-hero__icon {
+  width: 44px; height: 44px; flex: none; border-radius: 12px;
+  background: var(--accent-soft); color: var(--accent); display: grid; place-items: center;
+}
+.trip-hero__value { display: flex; align-items: baseline; gap: 10px; margin-top: 2px; }
+.trip-hero__value strong { font-size: 26px; font-weight: 900; letter-spacing: -.5px; color: var(--accent); }
+.trip-hero__value span { font-size: 13.5px; color: var(--dim); font-weight: 700; }
+
+/* Compact trip countdown pill in the header (non-home view only) */
+.header-trip {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  height: 40px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent);
+  font-size: 13.5px; font-weight: 800; white-space: nowrap;
+}
+
+/* ===== Home vs. filtering view =====
+   When a search/category/favorites filter is active, hide the hero, plan,
+   and poll sections so only the destination list remains. */
+#app.is-filtering .home-only { display: none; }
+#app.is-filtering .search--header { margin-left: auto; }   /* push search right */
+#app:not(.is-filtering) .header-trip { display: none; }
+
 /* ===== Destinations / Toolbar ===== */
 .section__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
 
@@ -510,6 +535,150 @@ a { text-decoration: none; }
 .date-input:hover { border-color: var(--accent); }
 .submit-btn { height: 52px; margin-top: 4px; width: 100%; font-size: 16px; font-weight: 900; justify-content: center; }
 
+/* Toolbar "+ 여행지 추가" — same 44px row height as the other toolbar controls */
+.btn--toolbar { height: 44px; padding: 0 16px; font-size: 13.5px; }
+
+/* ===== Add-destination form extras: textarea + file upload preview ===== */
+.field__textarea { height: auto; padding: 12px 14px; resize: vertical; font-family: inherit; line-height: 1.5; }
+.field__file {
+  width: 100%; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px;
+  background: var(--surface-2); color: var(--dim); font-size: 13.5px; cursor: pointer;
+}
+.field__file.has-error { border-color: var(--danger); }
+.photo-preview { position: relative; margin-top: 10px; width: 140px; height: 100px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-preview__remove {
+  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: none; border-radius: 8px;
+  background: rgba(0,0,0,.55); color: #fff; cursor: pointer; display: grid; place-items: center;
+}
+
+/* ===== Card "자세히" — now a real button, not decorative text ===== */
+.card__detail-btn {
+  margin-left: auto; border: none; background: none; padding: 0; cursor: pointer;
+  color: var(--ink); font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 3px;
+  font-family: inherit; transition: color .2s ease;
+}
+.card__detail-btn:hover { color: var(--accent); }
+
+/* ===== Detail modal (자세히) ===== */
+.modal--detail { max-width: 560px; }
+.detail-banner {
+  position: relative; height: 220px; background-size: cover; background-position: center;
+}
+.detail-banner__close {
+  position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,.9); border-color: transparent;
+  color: #1c1e22; /* fixed dark icon: background is always near-white, regardless of theme */
+}
+.detail-banner__close:hover { color: var(--accent); }
+/* Reset the top from .card__badge so the badge doesn't stretch top→bottom */
+.detail-banner__badge { position: absolute; top: auto; bottom: 14px; left: 16px; height: auto; white-space: nowrap; }
+.detail-banner__photo-actions { position: absolute; bottom: 14px; right: 14px; display: flex; gap: 8px; }
+.detail-photo-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border-radius: 9px; border: none; cursor: pointer;
+  background: rgba(255,255,255,.92); color: #1c1e22; font-size: 12.5px; font-weight: 800;
+  font-family: inherit; box-shadow: 0 2px 8px rgba(0,0,0,.18); transition: color .2s ease;
+}
+.detail-photo-btn:hover { color: var(--accent); }
+.detail-photo-btn--remove { color: var(--danger); }
+.detail-photo-btn--remove:hover { color: var(--danger); filter: brightness(.9); }
+.detail-body { padding: 22px 26px 28px; max-height: 64vh; overflow-y: auto; }
+.detail-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.detail-name { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.4px; }
+.detail-region { font-size: 13px; color: var(--dim); white-space: nowrap; }
+.detail-desc { margin: 10px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--dim); }
+
+.detail-stats {
+  display: flex; align-items: center; gap: 18px; margin: 18px 0 22px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  font-size: 13px; font-weight: 700; color: var(--dim);
+}
+.detail-stats__item--like { color: var(--accent); }
+.detail-stats__rating { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--ink); }
+
+.star-row { color: #f5b301; letter-spacing: 1px; font-size: 13px; }
+/* Unfilled stars stay dim wherever a star row appears (summary or per-review) */
+.star--empty { color: var(--border); }
+
+.detail-reviews__title { margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+.detail-reviews__title span { color: var(--dim); font-weight: 600; font-size: 13px; }
+.detail-reviews { list-style: none; margin: 0 0 24px; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 220px; overflow-y: auto; }
+.review-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
+.review-item__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.review-item__name { font-size: 13.5px; font-weight: 800; }
+.review-item__stars { color: #f5b301; font-size: 12px; letter-spacing: 1px; }
+.review-item__comment { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--dim); }
+.review-empty { list-style: none; font-size: 13.5px; color: var(--dim); padding: 16px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+
+.review-form { border-top: 1px solid var(--border); padding-top: 20px; display: flex; flex-direction: column; gap: 14px; }
+.review-form__title { margin: 0; font-size: 15px; font-weight: 800; }
+
+.star-picker { display: flex; gap: 6px; }
+.star-btn {
+  width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+  color: var(--border); font-size: 16px; cursor: pointer; display: grid; place-items: center;
+  transition: color .15s ease, border-color .15s ease;
+}
+.star-btn:hover { border-color: #f5b301; }
+.star-btn.is-on { color: #f5b301; border-color: #f5b301; background: rgba(245,179,1,.1); }
+
+/* ===== Random pick modal (룰렛/슬롯 릴) =====
+   Item height + gap here MUST match the H constant in app.js (spinRandom). */
+.modal--random { max-width: 440px; }
+.random-body { padding: 8px 26px 26px; }
+
+.reel-viewport {
+  position: relative;
+  height: 336px;            /* 3 rows: 3*104 + 2*12 gap */
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-2);
+  /* fade the top/bottom edges so cards appear to stream in and out */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+}
+.reel-strip {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 0 12px;
+  will-change: transform;
+}
+.reel-item {
+  height: 104px; flex: none;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.reel-item__thumb {
+  width: 88px; height: 80px; flex: none; border-radius: 10px;
+  background-size: cover; background-position: center;
+}
+.reel-item__name { font-size: 17px; font-weight: 900; letter-spacing: -.3px; }
+.reel-item__region { margin-top: 3px; font-size: 12.5px; color: var(--dim); }
+/* The winning row gets emphasised once the reel stops. */
+.reel-item--win {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft) inset;
+  animation: winPop .4s ease;
+}
+@keyframes winPop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: scale(1); } }
+
+/* Center highlight frame the winner lands inside */
+.reel-highlight {
+  position: absolute; left: 10px; right: 10px; top: 116px; height: 104px; /* middle row */
+  border: 2px solid var(--accent); border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 22px var(--accent-soft);
+}
+
+.random-result { margin-top: 20px; text-align: center; animation: floatIn .35s ease; }
+.random-result__eyebrow {
+  margin: 0 0 6px; color: var(--accent); font-size: 12px; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase;
+}
+.random-result__name { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -.5px; }
+.random-result__region { margin: 4px 0 18px; font-size: 14px; color: var(--dim); }
+.random-result__actions { display: flex; gap: 10px; justify-content: center; }
+
 /* ===== Responsive ===== */
 @media (max-width: 860px) {
   .hero__inner { grid-template-columns: 1fr; gap: 32px; padding-top: 44px; }
@@ -528,4 +697,9 @@ a { text-decoration: none; }
   .hero__search-row .btn { width: 100%; justify-content: center; }
   .footer__grid { grid-template-columns: 1fr; }
   .field-row { flex-direction: column; }
+  .detail-banner { height: 160px; }
+  .detail-stats { flex-wrap: wrap; }
+  .detail-stats__rating { margin-left: 0; }
+  /* Header trip pill would crowd the search box on phones — hide it there */
+  .header-trip { display: none !important; }
 }
